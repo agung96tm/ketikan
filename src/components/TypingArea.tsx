@@ -52,11 +52,23 @@ export const TypingArea: React.FC<TypingAreaProps> = ({
   const [pressedKeys, setPressedKeys] = useState<Set<string>>(new Set());
   const [showColorHints, setShowColorHints] = useState<boolean>(true);
 
-  // Refs for scrolling and timers
+  // Refs for tracking latest state values in async callbacks & timer
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const isFinishedRef = useRef<boolean>(false);
   const textContainerRef = useRef<HTMLDivElement | null>(null);
   const cursorRef = useRef<HTMLSpanElement | null>(null);
+
+  const timeLeftRef = useRef<number>(timeLeft);
+  const correctKeystrokesRef = useRef<number>(correctKeystrokes);
+  const totalKeystrokesRef = useRef<number>(totalKeystrokes);
+  const errorCountRef = useRef<number>(errorCount);
+  const wpmHistoryRef = useRef<number[]>(wpmHistory);
+
+  useEffect(() => { timeLeftRef.current = timeLeft; }, [timeLeft]);
+  useEffect(() => { correctKeystrokesRef.current = correctKeystrokes; }, [correctKeystrokes]);
+  useEffect(() => { totalKeystrokesRef.current = totalKeystrokes; }, [totalKeystrokes]);
+  useEffect(() => { errorCountRef.current = errorCount; }, [errorCount]);
+  useEffect(() => { wpmHistoryRef.current = wpmHistory; }, [wpmHistory]);
 
   const currentLine = lines[currentLineIdx] || '';
 
@@ -117,11 +129,13 @@ export const TypingArea: React.FC<TypingAreaProps> = ({
       playCompleteSound(0.3);
     }
 
-    const finalElapsedMinutes = Math.max((totalDurationSeconds - timeLeft) / 60, 0.05);
-    const finalWpm = Math.round((correctKeystrokes / 5) / finalElapsedMinutes);
-    const finalRpm = Math.round(correctKeystrokes / finalElapsedMinutes);
-    const finalAccuracy = totalKeystrokes > 0
-      ? Math.round((correctKeystrokes / totalKeystrokes) * 1000) / 10
+    const finalTimeLeft = timeLeftRef.current;
+    const finalDurationSeconds = totalDurationSeconds - finalTimeLeft;
+    const finalElapsedMinutes = Math.max(finalDurationSeconds / 60, 0.05);
+    const finalWpm = Math.round((correctKeystrokesRef.current / 5) / finalElapsedMinutes);
+    const finalRpm = Math.round(correctKeystrokesRef.current / finalElapsedMinutes);
+    const finalAccuracy = totalKeystrokesRef.current > 0
+      ? Math.round((correctKeystrokesRef.current / totalKeystrokesRef.current) * 1000) / 10
       : 100;
 
     onFinish({
@@ -130,23 +144,18 @@ export const TypingArea: React.FC<TypingAreaProps> = ({
       wpm: finalWpm,
       rpm: finalRpm,
       accuracy: finalAccuracy,
-      errors: errorCount,
-      durationSeconds: totalDurationSeconds - timeLeft,
-      totalCharsTyped: totalKeystrokes,
-      correctCharsTyped: correctKeystrokes,
-      wpmHistory,
+      errors: errorCountRef.current,
+      durationSeconds: finalDurationSeconds,
+      totalCharsTyped: totalKeystrokesRef.current,
+      correctCharsTyped: correctKeystrokesRef.current,
+      wpmHistory: wpmHistoryRef.current,
     });
   }, [
-    correctKeystrokes,
-    errorCount,
     lesson.id,
     lesson.name,
     onFinish,
     soundEnabled,
-    timeLeft,
     totalDurationSeconds,
-    totalKeystrokes,
-    wpmHistory,
   ]);
 
   useEffect(() => {
@@ -155,25 +164,29 @@ export const TypingArea: React.FC<TypingAreaProps> = ({
     timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          clearInterval(timerRef.current!);
+          if (timerRef.current) clearInterval(timerRef.current);
           handleFinish();
           return 0;
         }
 
-        if ((totalDurationSeconds - prev) % 5 === 0) {
-          const m = Math.max((totalDurationSeconds - prev) / 60, 0.01);
-          const currentWpm = Math.round((correctKeystrokes / 5) / m);
+        const nextTimeLeft = prev - 1;
+        const elapsed = totalDurationSeconds - nextTimeLeft;
+        if (elapsed % 5 === 0) {
+          const m = Math.max(elapsed / 60, 0.01);
+          const currentWpm = Math.round((correctKeystrokesRef.current / 5) / m);
           setWpmHistory((hist) => [...hist, currentWpm]);
         }
 
-        return prev - 1;
+        return nextTimeLeft;
       });
     }, 1000);
 
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
     };
-  }, [hasStarted, isFinished, handleFinish, totalDurationSeconds, correctKeystrokes]);
+  }, [hasStarted, isFinished, handleFinish, totalDurationSeconds]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {

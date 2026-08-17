@@ -1,0 +1,4 @@
+123 456 789 0 2026 100% $50 #tag @user
+item_id = 42; total: 99.5; count <= 10;
+price: $250.00 (discount: 15%); code: #A1B2
+[1, 2, 3] => {status: 200, valid: true}

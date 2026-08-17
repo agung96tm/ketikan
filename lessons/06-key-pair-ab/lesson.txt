@@ -1,0 +1,4 @@
+ab ba abba baba baab ab ba baba abba baab
+ab ba bab aba baab baba ab ba abba baba
+abba baba baab bab aba ab ba baab baba ab
+ba abba baba baab aba bab ab ba baba abba
